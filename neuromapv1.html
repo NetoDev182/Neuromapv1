@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise Cognitiva - TRRS</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+        :root {
+            --bg-deep: #0a0514;
+            --glass: rgba(25, 20, 40, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --cyan: #00ffcc;
+            --insuficiente: #ff4d4d;
+            --regular: #ffcc00;
+            --bom: #00ff88;
+            --otimo: #3399ff;
+            --text: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1a0b3a 0%, #0a0514 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header { text-align: center; margin-bottom: 20px; }
+        header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
+        header p { font-size: 0.95rem; color: rgba(255,255,255,0.5); font-weight: 300; }
+
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+
+        .category-item {
+            background: rgba(0,0,0,0.2);
+            padding: 18px;
+            border-radius: 18px;
+            margin-bottom: 15px;
+        }
+
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .title-group h3 { font-size: 1rem; font-weight: 600; }
+
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            background: rgba(255,255,255,0.05);
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px; height: 22px;
+            background: var(--cyan);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 350px;
+            margin-top: 20px;
+        }
+
+        .analysis-box {
+            margin-top: 20px;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: rgba(255,255,255,0.8);
+            border-left: 4px solid var(--cyan);
+        }
+
+        /* Desktop Grid */
+        @media (min-width: 768px) {
+            .main-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                align-items: start;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Análise Cognitiva - TRRS</h1>
+        <p>Mapeamento dos Processos Semióticos de Raymond Duval</p>
+    </header>
+
+    <div class="main-grid">
+        <div class="glass-card">
+            <div id="controls-list">
+                </div>
+            <div class="analysis-box" id="analysis-text">
+                Ajuste os níveis para visualizar o diagnóstico cognitivo.
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <div class="chart-container">
+                <canvas id="trrsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const categories = [
+        { id: 'cat1', label: '1. Assimilação / Construção' },
+        { id: 'cat2', label: '2. Tratamento' },
+        { id: 'cat3', label: '3. Conversão' },
+        { id: 'cat4', label: '4. Relações entre Formas' }
+    ];
+
+    const levels = {
+        1: { text: 'Insuficiente', color: '#ff4d4d' },
+        2: { text: 'Regular', color: '#ffcc00' },
+        3: { text: 'Bom', color: '#00ff88' },
+        4: { text: 'Ótimo', color: '#3399ff' }
+    };
+
+    let chart;
+
+    function init() {
+        // Criar inputs
+        const list = document.getElementById('controls-list');
+        categories.forEach(cat => {
+            list.innerHTML += `
+                <div class="category-item">
+                    <div class="label-row">
+                        <div class="title-group"><h3>${cat.label}</h3></div>
+                        <span id="badge-${cat.id}" class="badge">REGULAR</span>
+                    </div>
+                    <input type="range" id="${cat.id}" min="1" max="4" value="2" oninput="update()">
+                </div>
+            `;
+        });
+
+        const ctx = document.getElementById('trrsChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['Assimilação', 'Tratamento', 'Conversão', 'Relações'],
+                datasets: [{
+                    data: [2, 2, 2, 2],
+                    borderWidth: 2,
+                    borderColor: 'rgba(255,255,255,0.8)',
+                    pointBackgroundColor: '#ffffff',
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        min: 0, max: 4,
+                        ticks: { display: false, stepSize: 1 },
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        angleLines: { color: 'rgba(255,255,255,0.1)' },
+                        pointLabels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 } }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            },
+            plugins: [{
+                // GRADIENTE RADIAL NO FUNDO DO DATASET
+                beforeDatasetsDraw(chart) {
+                    const { ctx, chartArea } = chart;
+                    const x = (chartArea.left + chartArea.right) / 2;
+                    const y = (chartArea.top + chartArea.bottom) / 2;
+                    const radius = Math.min((chartArea.right - chartArea.left) / 2, (chartArea.bottom - chartArea.top) / 2);
+                    
+                    const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                    grad.addColorStop(0, 'rgba(255, 77, 77, 0.6)');    // Centro Vermelho
+                    grad.addColorStop(0.5, 'rgba(255, 204, 0, 0.3)');  // Meio Amarelo
+                    grad.addColorStop(0.8, 'rgba(0, 255, 136, 0.4)');  // Externo Verde
+                    grad.addColorStop(1, 'rgba(51, 153, 255, 0.5)');   // Borda Azul
+                    
+                    chart.data.datasets[0].backgroundColor = grad;
+                }
+            }]
+        });
+        update();
+    }
+
+    function update() {
+        const vals = categories.map(c => {
+            const v = document.getElementById(c.id).value;
+            const b = document.getElementById(`badge-${c.id}`);
+            b.innerText = levels[v].text;
+            b.style.color = levels[v].color;
+            b.style.background = levels[v].color + '22';
+            return parseInt(v);
+        });
+
+        chart.data.datasets[0].data = vals;
+        chart.update();
+
+        // Lógica de Diagnóstico
+        const info = document.getElementById('analysis-text');
+        const [a, t, c, r] = vals;
+        
+        if (c < t) {
+            info.innerHTML = "⚠️ <strong>Fenômeno de não-congruência:</strong> O aluno realiza tratamentos mas falha na conversão. É necessário foco na tradução entre registros.";
+        } else if (r >= 4) {
+            info.innerHTML = "✨ <strong>Noésis atingida:</strong> Coordenação plena entre os sistemas semióticos. O aluno compreende o objeto matemático além da sua representação.";
+        } else {
+            info.innerHTML = "📊 Ajuste os seletores para mapear as quatro etapas da Teoria dos Registros de Duval.";
+        }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
